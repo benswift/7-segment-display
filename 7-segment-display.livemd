@@ -1,0 +1,130 @@
+# HSAI: 7-segment display
+
+```elixir
+Mix.install([
+  {:axon, "~> 0.6"},
+  {:exla, "~> 0.7"},
+  {:kino, "~> 0.12.3"}
+])
+```
+
+## Data setup
+
+```elixir
+encode_digit = fn digit ->
+  # digits are indexed top->bottom, left->right
+  case digit do
+    0 -> [1, 1, 1, 0, 1, 1, 1]
+    1 -> [0, 0, 1, 0, 0, 1, 0]
+    2 -> [1, 0, 1, 1, 1, 0, 1]
+    3 -> [1, 0, 1, 1, 0, 1, 1]
+    4 -> [0, 1, 1, 1, 0, 1, 0]
+    5 -> [1, 1, 0, 1, 0, 1, 1]
+    6 -> [1, 1, 0, 1, 1, 1, 1]
+    7 -> [1, 0, 1, 0, 0, 1, 0]
+    8 -> [1, 1, 1, 1, 1, 1, 1]
+    9 -> [1, 1, 1, 1, 0, 1, 1]
+    _ -> nil
+  end
+end
+
+digits = 0..9 |> Enum.map(encode_digit)
+
+decode_digit = fn bit_pattern ->
+  Enum.find_index(digits, fn bp -> bp == bit_pattern end)
+end
+
+decode_digit.([1, 1, 1, 1, 0, 1, 1])
+```
+
+```elixir
+# let's test it out...
+encode_digit.(6) == [1, 1, 0, 1, 1, 1, 1] && 9 == decode_digit.([1, 1, 1, 1, 0, 1, 1])
+```
+
+## Training
+
+```elixir
+data =
+  0..9
+  |> Enum.map(encode_digit)
+  |> Nx.tensor(names: [:digit, :bit_pattern], type: :u8)
+```
+
+```elixir
+targets =
+  0..9
+  |> Enum.to_list()
+  |> Nx.tensor(type: :u8)
+  |> Nx.new_axis(-1)
+  |> Nx.equal(Nx.tensor(Enum.to_list(0..9)))
+```
+
+```elixir
+model =
+  Axon.input("input", shape: {nil, 7})
+  |> Axon.flatten()
+  |> Axon.dense(2, activation: :relu)
+  |> Axon.dense(10, activation: :softmax)
+
+params =
+  model
+  |> Axon.Loop.trainer(:categorical_cross_entropy, :adam)
+  |> Axon.Loop.metric(:accuracy, "Accuracy")
+  |> Axon.Loop.run(Stream.zip(Nx.to_batched(data, 1), Nx.to_batched(targets, 1)), %{},
+    epochs: 1000,
+    compiler: EXLA
+  )
+```
+
+## Inference
+
+```elixir
+test_digit = data |> Nx.to_batched(1) |> Enum.at(0)
+Axon.predict(model, params, test_digit) |> Nx.to_heatmap()
+```
+
+## Visualisation (WIP)
+
+```elixir
+svg_binary = fn segments ->
+  paths = [
+    "M 190.79731,72.5 L 175.58534,88 L 116.58535,88 L 101.06756,72.5 L 116.58535,57 L 175.58534,57 L 190.79731,72.5 z ",
+    "M 98,75.38513 L 113.5,90.59709 L 113.5,135.59708 L 98,151.11487 L 82.5,135.59708 L 82.5,90.59709 L 98,75.38513 z ",
+    "M 194,75.38513 L 209.5,90.59709 L 209.5,135.59708 L 194,151.11487 L 178.5,135.59708 L 178.5,90.59709 L 194,75.38513 z ",
+    "M 190.79731,154 L 175.58534,169.5 L 116.58535,169.5 L 101.06756,154 L 116.58535,138.5 L 175.58534,138.5 L 190.79731,154 z",
+    "M 98,157.44257 L 113.5,172.65453 L 113.5,217.65452 L 98,233.1723 L 82.5,217.65452 L 82.5,172.65453 L 98,157.44257 z ",
+    "M 194,157.44257 L 209.5,172.65453 L 209.5,217.65452 L 194,233.1723 L 178.5,217.65452 L 178.5,172.65453 L 194,157.44257 z ",
+    "M 190.79731,236.05743 L 175.58534,251.55743 L 116.58535,251.55743 L 101.06756,236.05743 L 116.58535,220.55743 L 175.58534,220.55743 L 190.79731,236.05743 z "
+  ]
+
+  Enum.zip(segments, paths)
+  |> Enum.map(fn {s, d} ->
+    color_attrs =
+      case s do
+        0 -> ~s|fill="none" stroke="#EEE"|
+        1 -> ~s|fill="red" stroke="#FF0517"|
+      end
+
+    ~s|<path #{color_attrs} d="#{d}" />|
+  end)
+  |> then(fn path_components ->
+    """
+    <svg viewBox="0 0 300 300" stroke-width="3" xmlns="http://www.w3.org/2000/svg">
+    <g>
+      #{path_components}
+    </g>
+    </svg>
+    """
+  end)
+end
+
+svg_kino = fn segments ->
+  svg_binary.(segments)
+  |> Kino.HTML.new()
+end
+
+data[[digit: 9]]
+|> Nx.to_list()
+|> svg_kino.()
+```
