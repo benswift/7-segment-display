@@ -210,6 +210,11 @@ end
 ## Visualisation
 
 ```elixir
+# visualise the confusion matrix (i.e. perfect model will have all white on diagonal, black otherwise)
+Axon.predict(model, params, inputs) |> Nx.to_heatmap()
+```
+
+```elixir
 defmodule SevenSegment.Vis do
   @segment_paths [
     "M 190.79731,72.5 L 175.58534,88 L 116.58535,88 L 101.06756,72.5 L 116.58535,57 L 175.58534,57 L 190.79731,72.5 z ",
