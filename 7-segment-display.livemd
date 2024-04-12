@@ -90,7 +90,13 @@ defmodule SevenSegment.Model do
 
   Example: create a networks with a single hidden layer of 2 neurons:
 
-      TODO
+      iex> SevenSegment.Model.new([2])
+      #Axon<
+        inputs: %{"bitlist" => {nil, 7}}
+        outputs: "softmax_0"
+        nodes: 5
+      >
+
   """
   def new(hidden_layer_sizes) do
     input = Axon.input("bitlist", shape: {nil, 7})
