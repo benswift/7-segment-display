@@ -1,4 +1,4 @@
-# HSAI: 7-segment display
+# Human-Scale AI: 7-segment display
 
 ```elixir
 Mix.install([
